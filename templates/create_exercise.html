@@ -210,7 +210,7 @@ document.addEventListener('DOMContentLoaded', function() {
         optionDiv.innerHTML = `
             <div class="input-group">
                 <div class="input-group-text">
-                    <input type="radio" name="correct_answer_${questionId}" value="${optionId}" required>
+                    <input type="checkbox" name="correct_answers_${questionId}[]" value="${optionId}">
                 </div>
                 <input type="text" class="form-control" name="option_text_${questionId}[]" 
                        placeholder="Option ${optionId + 1}" required>
@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateOptionNumbers(container, questionId) {
         const options = container.querySelectorAll('.option-item');
         options.forEach((option, index) => {
-            const input = option.querySelector('input[type="radio"]');
+            const input = option.querySelector('input[type="checkbox"]');
             const textInput = option.querySelector('input[type="text"]');
             input.value = index;
             textInput.placeholder = `Option ${index + 1}`;
@@ -352,10 +352,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     alert(`La question ${questionIndex + 1} doit avoir au moins deux options.`);
                 }
                 
-                const selectedAnswer = question.querySelector(`input[name="correct_answer_${questionIndex}"]:checked`);
-                if (!selectedAnswer) {
+                const selectedAnswers = question.querySelectorAll(`input[name="correct_answers_${questionIndex}[]"]:checked`);
+                if (selectedAnswers.length === 0) {
                     isValid = false;
-                    alert(`Veuillez sélectionner une réponse correcte pour la question ${questionIndex + 1}.`);
+                    alert(`Veuillez sélectionner au moins une réponse correcte pour la question ${questionIndex + 1}.`);
                 }
                 
                 options.forEach((option, optionIndex) => {

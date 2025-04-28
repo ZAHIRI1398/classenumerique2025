@@ -88,7 +88,7 @@ function createQCMForm() {
                                    name="questions[${questionCounter}][choices][][text]" 
                                    placeholder="Réponse ${i + 1}" required>
                             <div class="input-group-text">
-                                <input class="form-check-input" type="radio" 
+                                <input class="form-check-input" type="checkbox" 
                                        name="questions[${questionCounter}][correct]" 
                                        value="${i}" ${i === 0 ? 'checked' : ''}>
                             </div>

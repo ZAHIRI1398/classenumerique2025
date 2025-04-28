@@ -194,28 +194,71 @@ def teacher_dashboard():
         # Récupérer les exercices créés par l'enseignant
         exercises = Exercise.query.filter_by(created_by=current_user.id).all()
         
-        # Calculer les statistiques
+        # Calculer les statistiques globales
         total_classes = len(teacher_classes)
-        
-        # Calculer le nombre total d'élèves uniques
         student_set = set()
         for class_ in teacher_classes:
             student_set.update([student.id for student in class_.students])
         total_students = len(student_set)
-        
-        # Calculer le nombre total d'exercices
         total_exercises = len(exercises)
-        
         stats = {
             'total_classes': total_classes,
             'total_students': total_students,
             'total_exercises': total_exercises
         }
-        
+
+        # Statistiques détaillées par exercice
+        exercise_stats = []
+        for exercise in exercises:
+            submissions = exercise.submissions
+            scores = [sub.score for sub in submissions if sub.score is not None]
+            avg_score = round(sum(scores) / len(scores), 2) if scores else None
+            score_distribution = {}
+            for sub in submissions:
+                score_bucket = int((sub.score or 0) // 10 * 10)  # e.g., 0-9, 10-19, ...
+                score_distribution[score_bucket] = score_distribution.get(score_bucket, 0) + 1
+            # Générer les labels et data ordonnés (0-9, 10-19, ...)
+            if score_distribution:
+                min_bucket = min(score_distribution.keys())
+                max_bucket = max(score_distribution.keys())
+            else:
+                min_bucket = 0
+                max_bucket = 100
+            # On force les intervalles 0-9 jusqu'à 100
+            labels = []
+            data = []
+            for b in range(0, 101, 10):
+                label = f"{b}-{b+9}"
+                labels.append(label)
+                data.append(score_distribution.get(b, 0))
+            # Préparer le détail des soumissions (élève + score)
+            submissions_detail = []
+            for sub in submissions:
+                student = getattr(sub, 'submitting_student', None)
+                if student:
+                    student_name = student.username or student.email or f"ID {student.id}"
+                else:
+                    student_name = "Inconnu"
+                submissions_detail.append({
+                    'student': student_name,
+                    'score': sub.score
+                })
+            exercise_stats.append({
+                'id': exercise.id,
+                'title': exercise.title,
+                'type': exercise.exercise_type,
+                'avg_score': avg_score,
+                'submission_count': len(submissions),
+                'score_labels': labels,
+                'score_data': data,
+                'submissions_detail': submissions_detail
+            })
+
         return render_template('teacher_dashboard.html',
                              classes=teacher_classes,
                              exercises=exercises,
-                             stats=stats)
+                             stats=stats,
+                             exercise_stats=exercise_stats)
     except Exception as e:
         logger.error(f"Erreur lors de l'accès au tableau de bord enseignant: {str(e)}")
         flash("Une erreur s'est produite lors de l'accès au tableau de bord.", "error")
@@ -502,20 +545,18 @@ def create_exercise():
                     
                     # Traiter les options
                     option_texts = request.form.getlist(f'option_text_{i}[]')
-                    correct_answer = request.form.get(f'correct_answer_{i}')
-                    
+                    correct_answers = request.form.getlist(f'correct_answers_{i}[]')
                     logger.info(f"Options pour la question {i}: {option_texts}")
-                    logger.info(f"Réponse correcte pour la question {i}: {correct_answer}")
-                    
-                    # S'assurer que correct_answer est un entier
-                    try:
-                        correct_answer = int(correct_answer)
-                    except (TypeError, ValueError):
-                        logger.error(f"Valeur invalide pour correct_answer: {correct_answer}")
-                        correct_answer = 0
-                    
+                    logger.info(f"Réponses correctes pour la question {i}: {correct_answers}")
+                    # Convertir les indices des bonnes réponses en entiers
+                    correct_answer_indices = set()
+                    for ans in correct_answers:
+                        try:
+                            correct_answer_indices.add(int(ans))
+                        except (TypeError, ValueError):
+                            logger.error(f"Valeur invalide pour correct_answer: {ans}")
                     for j, option_text in enumerate(option_texts):
-                        is_correct = j == correct_answer
+                        is_correct = j in correct_answer_indices
                         logger.info(f"Option {j}: {option_text} (correcte: {is_correct})")
                         choice = Choice(text=option_text, is_correct=is_correct)
                         question.choices.append(choice)
@@ -1167,17 +1208,20 @@ def submit_exercise(exercise_id):
         answers = {}
         
         if exercise.exercise_type == 'QCM':
-            # Traitement des réponses QCM
+            # Traitement des réponses QCM (plusieurs choix possibles)
             for question in exercise.questions:
                 total_questions += 1
-                answer_key = f'answer_{question.id}'
-                if answer_key in request.form:
-                    selected_choice_id = int(request.form[answer_key])
-                    selected_choice = Choice.query.get(selected_choice_id)
-                    if selected_choice and selected_choice.is_correct:
-                        score += 1
-                    answers[str(question.id)] = selected_choice_id
-                    
+                answer_key = f'answer_{question.id}[]'
+                # Flask WTForms/HTML: checkboxes use answer_{id}[] as name, getlist returns all checked values
+                selected_choices = request.form.getlist(f'answer_{question.id}[]')
+                selected_choice_ids = [int(cid) for cid in selected_choices]
+                answers[str(question.id)] = selected_choice_ids
+                # Récupérer les IDs des bonnes réponses
+                correct_choice_ids = [choice.id for choice in question.choices if choice.is_correct]
+                # Score: la réponse est correcte si les deux ensembles sont identiques
+                if set(selected_choice_ids) == set(correct_choice_ids):
+                    score += 1
+            
         elif exercise.exercise_type == 'text_holes':
             # Traitement des réponses texte à trous
             total_questions = len(exercise.text_holes)
@@ -1386,18 +1430,18 @@ def grade_submission(exercise_id, submission_id):
         form.feedback.data = submission.feedback
 
     # Pour un QCM, calculer le score automatiquement
-    if exercise.exercise_type == 'qcm':
+    if exercise.exercise_type.lower() == 'qcm':
         correct_answers = 0
         total_questions = len(exercise.questions)
-        
         for question in exercise.questions:
-            answer_key = f'question_{question.id}'
-            if answer_key in submission.answers:
-                student_choice = submission.answers[answer_key]
-                correct_choice = next((choice for choice in question.choices if choice.is_correct), None)
-                if correct_choice and student_choice == correct_choice.id:
-                    correct_answers += 1
-        
+            answer_key = str(question.id)
+            # L'étudiant peut avoir sélectionné plusieurs réponses (liste d'IDs)
+            student_choices = submission.answers.get(answer_key, [])
+            if not isinstance(student_choices, list):
+                student_choices = [student_choices]
+            correct_choices = [choice.id for choice in question.choices if choice.is_correct]
+            if set(student_choices) == set(correct_choices):
+                correct_answers += 1
         suggested_score = (correct_answers / total_questions) * 100 if total_questions > 0 else 0
         if submission.score is None:
             form.score.data = suggested_score

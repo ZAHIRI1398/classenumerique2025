@@ -55,26 +55,26 @@
                             {% endif %}
                             <div class="list-group">
                                 {% for choice in question.choices %}
-                                    <div class="list-group-item">
-                                        {% if is_teacher %}
-                                            <div class="d-flex align-items-center">
-                                                <span class="me-2">
-                                                    <i class="fas {% if choice.is_correct %}fa-check text-success{% else %}fa-times text-danger{% endif %}"></i>
-                                                </span>
-                                                {{ choice.text }}
-                                            </div>
-                                        {% else %}
-                                            <div class="form-check">
-                                                <input type="radio" class="form-check-input" 
-                                                       name="answer_{{ question.id }}" 
-                                                       value="{{ choice.id }}" 
-                                                       {% if user_submission and choice.id in user_submission.answers %}checked{% endif %}
-                                                       {% if user_submission %}disabled{% endif %}>
-                                                <label class="form-check-label">{{ choice.text }}</label>
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                {% endfor %}
+    <div class="list-group-item">
+        {% if is_teacher %}
+            <div class="d-flex align-items-center">
+                <span class="me-2">
+                    <i class="fas {% if choice.is_correct %}fa-check text-success{% else %}fa-times text-danger{% endif %}"></i>
+                </span>
+                {{ choice.text }}
+            </div>
+        {% else %}
+            <div class="form-check">
+                <input type="checkbox" class="form-check-input"
+                       name="answer_{{ question.id }}[]"
+                       value="{{ choice.id }}"
+                       {% if user_submission and choice.id in user_submission.answers %}checked{% endif %}
+                       {% if user_submission %}disabled{% endif %}>
+                <label class="form-check-label">{{ choice.text }}</label>
+            </div>
+        {% endif %}
+    </div>
+{% endfor %}
                             </div>
                         </div>
                     {% endfor %}
@@ -225,12 +225,12 @@
                                 {% endif %}
                                 <div class="list-group">
                                     {% for option in question.choices %}
-                                        <label class="list-group-item">
-                                            <input type="radio" class="form-check-input me-2" 
-                                                   name="answer_{{ question.id }}" value="{{ option.id }}" required>
-                                            {{ option.text }}
-                                        </label>
-                                    {% endfor %}
+    <label class="list-group-item">
+        <input type="checkbox" class="form-check-input me-2"
+               name="answer_{{ question.id }}[]" value="{{ option.id }}">
+        {{ option.text }}
+    </label>
+{% endfor %}
                                 </div>
                             </div>
                         </div>
