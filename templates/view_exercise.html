@@ -44,6 +44,15 @@
                 <h5 class="card-title mb-0">Contenu de l'exercice</h5>
             </div>
             <div class="card-body">
+                {% if not is_teacher and max_attempts %}
+                    <div class="alert alert-info mb-4">
+                        {% if attempts_left > 0 %}
+                            Vous avez <strong>{{ attempts_left }}</strong> tentative(s) restante(s) sur <strong>{{ max_attempts }}</strong> possible(s) pour cet exercice.
+                        {% else %}
+                            <strong>Vous avez atteint le nombre maximum de tentatives pour cet exercice.</strong>
+                        {% endif %}
+                    </div>
+                {% endif %}
                 {% if exercise.exercise_type == 'QCM' %}
                     {% for question in exercise.questions %}
                         <div class="mb-4">

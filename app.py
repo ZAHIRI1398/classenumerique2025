@@ -1132,12 +1132,21 @@ def view_exercise(exercise_id):
         
         # Récupérer la dernière soumission de l'utilisateur
         user_submission = None
+        attempts_left = None
+        max_attempts = None
         if not current_user.is_teacher:
             user_submission = ExerciseSubmission.query.filter_by(
                 student_id=current_user.id,
                 exercise_id=exercise_id
             ).order_by(ExerciseSubmission.submitted_at.desc()).first()
-            
+
+            # Calcul du nombre de tentatives restantes
+            attempt_count = ExerciseSubmission.query.filter_by(
+                student_id=current_user.id,
+                exercise_id=exercise_id
+            ).count()
+            max_attempts = exercise.max_attempts if hasattr(exercise, 'max_attempts') and exercise.max_attempts else 3
+            attempts_left = max_attempts - attempt_count
             if user_submission:
                 logger.debug(f"Dernière soumission trouvée: ID={user_submission.id}, Score={user_submission.score}")
             else:
@@ -1170,7 +1179,9 @@ def view_exercise(exercise_id):
                           is_enrolled=is_enrolled,
                           user_submission=user_submission,
                           submissions=submissions,
-                          form=form)
+                          form=form,
+                          attempts_left=attempts_left,
+                          max_attempts=max_attempts)
                           
     except Exception as e:
         logger.error(f"Erreur lors de l'accès à l'exercice {exercise_id}: {str(e)}")
@@ -1193,15 +1204,20 @@ def submit_exercise(exercise_id):
             flash("Vous n'êtes pas inscrit à ce cours.", 'danger')
             return redirect(url_for('view_exercise', exercise_id=exercise_id))
             
-        # Vérifier si l'exercice est déjà soumis
-        existing_submission = ExerciseSubmission.query.filter_by(
+        # Vérifier le nombre de tentatives déjà effectuées
+        attempt_count = ExerciseSubmission.query.filter_by(
             student_id=current_user.id,
             exercise_id=exercise_id
-        ).first()
-        
-        if existing_submission:
-            flash("Vous avez déjà soumis cet exercice.", 'warning')
+        ).count()
+
+        max_attempts = exercise.max_attempts if hasattr(exercise, 'max_attempts') and exercise.max_attempts else 3
+        attempts_left = max_attempts - attempt_count
+
+        if attempts_left <= 0:
+            flash(f"Vous avez atteint le nombre maximum de tentatives autorisées pour cet exercice ({max_attempts}).", 'danger')
             return redirect(url_for('view_exercise', exercise_id=exercise_id))
+        else:
+            flash(f"Il vous reste {attempts_left} tentative(s) pour cet exercice.", 'info')
             
         score = 0
         total_questions = 0
