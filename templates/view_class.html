@@ -42,6 +42,16 @@
                     {% endif %}
                 </div>
                 <div class="card-body">
+                    {% if current_user.is_teacher and current_user.id == class_.teacher_id %}
+                    <div class="mb-3 d-flex gap-2">
+                        <a href="/classes/{{ class_.id }}/export/excel" class="btn btn-outline-success">
+    <i class="fas fa-file-excel"></i> Export Excel
+</a>
+<a href="/classes/{{ class_.id }}/export/pdf" class="btn btn-outline-danger">
+    <i class="fas fa-file-pdf"></i> Export PDF
+</a>
+                    </div>
+                    {% endif %}
                     {% if class_.courses %}
                     <div class="list-group">
                         {% for course in class_.courses %}
